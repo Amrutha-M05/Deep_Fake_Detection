@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DeepFake Detector</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080b10;
+    --surface: #0e1219;
+    --surface2: #141922;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8eaf0;
+    --muted: #5a6070;
+    --accent: #00e5a0;
+    --accent-dim: rgba(0,229,160,0.1);
+    --danger: #ff4d6d;
+    --danger-dim: rgba(255,77,109,0.1);
+    --amber: #f5a623;
+    --amber-dim: rgba(245,166,35,0.1);
+    --mono: 'DM Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid bg */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,160,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,160,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  /* Header */
+  header {
+    margin-bottom: 56px;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .eyebrow::before {
+    content: '';
+    width: 20px; height: 1px;
+    background: var(--accent);
+  }
+  h1 {
+    font-size: clamp(36px, 6vw, 64px);
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: #fff;
+    margin-bottom: 16px;
+  }
+  h1 span { color: var(--accent); }
+  .subtitle {
+    font-size: 15px;
+    color: var(--muted);
+    line-height: 1.6;
+    max-width: 480px;
+    font-family: var(--mono);
+  }
+
+  /* Team badge */
+  .team-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 24px;
+  }
+  .pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 99px;
+    border: 1px solid var(--border2);
+    color: var(--muted);
+    background: var(--surface);
+  }
+
+  /* Upload zone */
+  .upload-card {
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    background: var(--surface);
+    padding: 48px 32px;
+    text-align: center;
+    position: relative;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .upload-card:hover { border-color: rgba(0,229,160,0.3); }
+  .upload-card.drag { border-color: var(--accent); background: rgba(0,229,160,0.04); }
+  .upload-card input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+
+  .upload-icon {
+    width: 56px; height: 56px;
+    border: 1px solid var(--border2);
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 20px;
+    background: var(--surface2);
+  }
+  .upload-title {
+    font-size: 18px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .upload-sub {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Preview state */
+  #preview-state { display: none; }
+  #preview-img {
+    max-height: 260px;
+    max-width: 100%;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border);
+  }
+  .file-meta {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Buttons */
+  .btn-row {
+    display: flex;
+    gap: 10px;
+  }
+  .btn {
+    flex: 1;
+    padding: 13px 20px;
+    border-radius: 10px;
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    border: 1px solid var(--border2);
+    transition: all 0.15s;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: #080b10;
+    border-color: var(--accent);
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-primary:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    filter: none;
+  }
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+  }
+  .btn-ghost:hover { border-color: var(--border2); color: var(--text); }
+
+  /* Loading */
+  #loading {
+    display: none;
+    border: 1px solid var(--border2);
+    border-radius: 16px;
+    background: var(--surface);
+    padding: 40px 32px;
+    text-align: center;
+    margin-top: 16px;
+    position: relative;
+    overflow: hidden;
+  }
+  .scan-bar {
+    position: absolute;
+    left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, var(--accent) 50%, transparent 100%);
+    animation: scandown 2s linear infinite;
+    top: 0;
+  }
+  @keyframes scandown {
+    from { top: 0; opacity: 1; }
+    to   { top: 100%; opacity: 0; }
+  }
+  .spinner-rings {
+    position: relative;
+    width: 64px; height: 64px;
+    margin: 0 auto 20px;
+  }
+  .ring {
+    position: absolute; border-radius: 50%;
+    border: 1px solid transparent;
+  }
+  .ring-1 {
+    inset: 0;
+    border-top-color: var(--accent);
+    animation: spin 1.2s linear infinite;
+  }
+  .ring-2 {
+    inset: 10px;
+    border-top-color: rgba(0,229,160,0.4);
+    animation: spin 1.8s linear infinite reverse;
+  }
+  .ring-3 {
+    inset: 20px;
+    border-top-color: rgba(0,229,160,0.2);
+    animation: spin 2.4s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .load-title {
+    font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 6px;
+  }
+  .load-sub {
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+  }
+
+  /* Result */
+  #result { display: none; margin-top: 16px; }
+
+  .verdict-card {
+    border-radius: 16px;
+    border: 1px solid var(--border2);
+    background: var(--surface);
+    padding: 28px;
+    margin-bottom: 12px;
+    position: relative;
+    overflow: hidden;
+  }
+  .verdict-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .verdict-card.fake::before { background: var(--danger); }
+  .verdict-card.real::before { background: var(--accent); }
+
+  .verdict-top {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .verdict-badge {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    padding: 5px 14px;
+    border-radius: 99px;
+    flex-shrink: 0;
+  }
+  .badge-fake { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(255,77,109,0.2); }
+  .badge-real { background: var(--accent-dim); color: var(--accent); border: 1px solid rgba(0,229,160,0.2); }
+  .badge-conf { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); margin-left: auto; }
+
+  .verdict-label {
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .verdict-sub {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  /* Probability bar */
+  .prob-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 6px;
+  }
+  .prob-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    width: 32px;
+    flex-shrink: 0;
+  }
+  .prob-label.right { text-align: right; }
+  .prob-track {
+    flex: 1;
+    height: 6px;
+    background: var(--surface2);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .prob-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 1.2s cubic-bezier(0.16,1,0.3,1);
+    width: 0%;
+  }
+  .fill-fake { background: var(--danger); }
+  .fill-real { background: var(--accent); }
+  .prob-num {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    width: 44px;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* Stats grid */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-top: 20px;
+  }
+  .stat-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+  }
+  .stat-val {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 500;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .stat-key {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* Image result row */
+  .img-result-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  @media (max-width: 540px) { .img-result-row { grid-template-columns: 1fr; } }
+
+  .img-panel {
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    background: var(--surface);
+    overflow: hidden;
+  }
+  .img-panel img {
+    width: 100%;
+    display: block;
+    object-fit: cover;
+    max-height: 240px;
+  }
+  .img-panel-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Info card */
+  .info-card {
+    border: 1px solid var(--border2);
+    border-radius: 12px;
+    background: var(--surface);
+    padding: 20px 22px;
+  }
+  .info-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .info-body {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+
+  /* Footer */
+  footer {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .dot-sep { margin: 0 6px; opacity: 0.4; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Team 06 · Deep Learning Project</div>
+    <h1>Deep<span>Fake</span><br>Detector</h1>
+    <p class="subtitle">EfficientNet-B4 transfer learning model for binary classification of real vs. synthetic facial images.</p>
+    <div class="team-row">
+      <span class="pill">Ananthan K · ARI25006</span>
+      <span class="pill">Amrutha M · ARI25004</span>
+      <span class="pill">Mohammed Aariff L · ARI25014</span>
+      <span class="pill">Submitted to: Akshara P Byju</span>
+    </div>
+  </header>
+
+  <!-- Upload zone -->
+  <div class="upload-card" id="drop-zone">
+    <input type="file" id="file-input" accept="image/*">
+    <div id="upload-state">
+      <div class="upload-icon">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" stroke="#00e5a0" stroke-width="1.6" stroke-linecap="round"/>
+          <polyline points="17 8 12 3 7 8" stroke="#00e5a0" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="12" y1="3" x2="12" y2="15" stroke="#00e5a0" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <p class="upload-title">Drop a face image here</p>
+      <p class="upload-sub">or click to browse · JPG, PNG, WEBP · max 10 MB</p>
+    </div>
+    <div id="preview-state">
+      <img id="preview-img" src="" alt="Preview">
+      <p class="file-meta" id="file-meta"></p>
+    </div>
+  </div>
+
+  <div class="btn-row" style="margin-bottom:24px;">
+    <button class="btn btn-primary" id="analyze-btn" onclick="analyze()" disabled>Run analysis</button>
+    <button class="btn btn-ghost" onclick="reset()" style="flex:0; padding: 13px 24px;">Reset</button>
+  </div>
+
+  <!-- Loading -->
+  <div id="loading">
+    <div class="scan-bar"></div>
+    <div class="spinner-rings">
+      <div class="ring ring-1"></div>
+      <div class="ring ring-2"></div>
+      <div class="ring ring-3"></div>
+    </div>
+    <p class="load-title" id="load-msg">Extracting features...</p>
+    <p class="load-sub">Running inference on EfficientNet-B4</p>
+  </div>
+
+  <!-- Result -->
+  <div id="result">
+
+    <div class="img-result-row">
+      <div class="img-panel">
+        <img id="result-img" src="" alt="Analyzed image">
+        <div class="img-panel-label">Input image</div>
+      </div>
+      <div id="verdict-card" class="verdict-card">
+        <div class="verdict-top">
+          <div>
+            <div id="verdict-badge" class="verdict-badge"></div>
+            <p id="verdict-label" class="verdict-label" style="margin-top:12px;"></p>
+            <p id="verdict-sub" class="verdict-sub"></p>
+          </div>
+          <div id="conf-badge" class="verdict-badge badge-conf"></div>
+        </div>
+
+        <div>
+          <div class="prob-row">
+            <span class="prob-label">FAKE</span>
+            <div class="prob-track"><div class="prob-fill fill-fake" id="fake-bar"></div></div>
+            <span class="prob-num" id="fake-num" style="color:var(--danger);"></span>
+          </div>
+          <div class="prob-row">
+            <span class="prob-label">REAL</span>
+            <div class="prob-track"><div class="prob-fill fill-real" id="real-bar"></div></div>
+            <span class="prob-num" id="real-num" style="color:var(--accent);"></span>
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-box">
+            <div class="stat-val" id="stat-model">EfficientNet</div>
+            <div class="stat-key">Model</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val" id="stat-conf"></div>
+            <div class="stat-key">Confidence</div>
+          </div>
+          <div class="stat-box">
+            <div class="stat-val">224px</div>
+            <div class="stat-key">Input size</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="info-card">
+      <p class="info-title">Model note</p>
+      <p class="info-body">Classification by EfficientNet-B4 pretrained on ImageNet and fine-tuned on the Deepfake and Real Images dataset (Kaggle · manjilkarki). Predictions are probabilistic — high-quality deepfakes may evade detection. Always corroborate with multiple sources.</p>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <span>DeepFake Detector · Team 06</span>
+  <span>
+    EfficientNet-B4
+    <span class="dot-sep">·</span>
+    PyTorch
+    <span class="dot-sep">·</span>
+    Flask
+  </span>
+</footer>
+
+<script>
+let fileData = null;
+
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('file-input');
+const analyzeBtn = document.getElementById('analyze-btn');
+
+fileInput.addEventListener('change', e => { if (e.target.files[0]) loadFile(e.target.files[0]); });
+dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag');
+  if (e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+});
+
+function loadFile(file) {
+  if (!file.type.startsWith('image/')) return;
+  fileData = file;
+  const url = URL.createObjectURL(file);
+  document.getElementById('preview-img').src = url;
+  document.getElementById('file-meta').textContent = file.name + ' · ' + (file.size / 1024).toFixed(1) + ' KB';
+  document.getElementById('upload-state').style.display = 'none';
+  document.getElementById('preview-state').style.display = 'block';
+  analyzeBtn.disabled = false;
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('loading').style.display = 'none';
+}
+
+function reset() {
+  fileData = null;
+  fileInput.value = '';
+  document.getElementById('upload-state').style.display = 'block';
+  document.getElementById('preview-state').style.display = 'none';
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('loading').style.display = 'none';
+  analyzeBtn.disabled = true;
+}
+
+const msgs = ['Extracting features...', 'Running EfficientNet-B4...', 'Computing probabilities...', 'Finalizing prediction...'];
+let msgIdx = 0, msgTimer = null;
+
+async function analyze() {
+  if (!fileData) return;
+  analyzeBtn.disabled = true;
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('loading').style.display = 'block';
+
+  msgIdx = 0;
+  document.getElementById('load-msg').textContent = msgs[0];
+  msgTimer = setInterval(() => {
+    msgIdx = (msgIdx + 1) % msgs.length;
+    document.getElementById('load-msg').textContent = msgs[msgIdx];
+  }, 1400);
+
+  const form = new FormData();
+  form.append('image', fileData);
+
+  try {
+    const resp = await fetch('/predict', { method: 'POST', body: form });
+    const data = await resp.json();
+    clearInterval(msgTimer);
+    document.getElementById('loading').style.display = 'none';
+    analyzeBtn.disabled = false;
+
+    if (data.error) { alert(data.error); return; }
+    renderResult(data);
+  } catch (e) {
+    clearInterval(msgTimer);
+    document.getElementById('loading').style.display = 'none';
+    analyzeBtn.disabled = false;
+    alert('Request failed. Is the Flask server running?');
+  }
+}
+
+function renderResult(d) {
+  const isFake = d.verdict === 'FAKE';
+
+  document.getElementById('result-img').src = d.thumbnail;
+
+  const card = document.getElementById('verdict-card');
+  card.className = 'verdict-card ' + (isFake ? 'fake' : 'real');
+
+  const badge = document.getElementById('verdict-badge');
+  badge.className = 'verdict-badge ' + (isFake ? 'badge-fake' : 'badge-real');
+  badge.textContent = d.verdict;
+
+  document.getElementById('verdict-label').textContent = isFake ? 'Likely Synthetic' : 'Likely Authentic';
+  document.getElementById('verdict-sub').textContent = d.fake_prob + '% fake probability · ' + d.confidence + ' confidence';
+
+  document.getElementById('conf-badge').textContent = d.confidence;
+  document.getElementById('stat-conf').textContent = d.confidence;
+
+  document.getElementById('fake-num').textContent = d.fake_prob + '%';
+  document.getElementById('real-num').textContent = d.real_prob + '%';
+
+  setTimeout(() => {
+    document.getElementById('fake-bar').style.width = d.fake_prob + '%';
+    document.getElementById('real-bar').style.width = d.real_prob + '%';
+  }, 60);
+
+  document.getElementById('result').style.display = 'block';
+}
+</script>
+</body>
+</html>
