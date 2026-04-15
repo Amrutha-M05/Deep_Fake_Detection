@@ -1,14 +1,5 @@
 # DeepFake Image Detection (Binary Classification)
 
-**Team No : 06**
-
-| Member | Roll No |
-|--------|---------|
-| Ananthan K | AM.SC.P2ARI25006 |
-| Amrutha M | AM.SC.P2ARI25004 |
-| Mohammed Aariff L | AM.SC.P2ARI25014 |
-
-**Submitted to:** Akshara P Byju
 
 ---
 
@@ -50,7 +41,7 @@ deepfake-detection/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/<your-username>/deepfake-detection.git
+git clone https://github.com/Amrutha-M05/deepfake-detection.git
 cd deepfake-detection
 ```
 

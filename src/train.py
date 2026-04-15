@@ -31,7 +31,7 @@ CONFIG = {
     "output_dir": "outputs",
     "image_size": 224,
     "batch_size": 32,
-    "num_workers": 4,
+    "num_workers": 0,
     "num_epochs": 20,
     "learning_rate": 1e-4,
     "weight_decay": 1e-5,
